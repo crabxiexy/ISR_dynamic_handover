@@ -336,6 +336,10 @@ class Runner:
                 self.policy[agent_id].actor.load_state_dict(policy_actor_state_dict)
                 policy_critic_state_dict = torch.load(str(self.model_dir) + '/critic_agent' + str(agent_id) + '.pt', map_location=self.device)
                 self.policy[agent_id].critic.load_state_dict(policy_critic_state_dict)
+        
+        # 同时加载traj_estimator到相同的目录（如果task类有这个方法）
+        if hasattr(self.envs.task, 'load_traj_estimator'):
+            self.envs.task.load_traj_estimator(self.model_dir)
 
     def log_train(self, train_infos, total_num_steps): 
         for agent_id in range(self.num_agents):

@@ -82,3 +82,4 @@ python train.py --task AllegroHandDynamicHandover --algo mappo --logdir /your/cu
 /home/caozhuo/dynamic_handover/dexteroushandenvs/logs/allegro_hand_dynamic_handover/mappo/models_seed{seed}/
 ```
 
+

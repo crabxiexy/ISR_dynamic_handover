@@ -51,7 +51,7 @@ class TemporaryGrad(object):
     def __exit__(self, exc_type, exc_value, traceback):
         torch.set_grad_enabled(self.prev)
 
-class AllegroHandDynamicHandover(BaseTask):
+class AllegroHandDynamicHandoverTeacher(BaseTask):
     def __init__(self, cfg, sim_params, physics_engine, device_type, device_id, headless, agent_index=[[[0, 1, 2, 3, 4, 5]], [[0, 1, 2, 3, 4, 5]]], is_multi_agent=False):
         self.cfg = cfg
         self.sim_params = sim_params
@@ -523,6 +523,8 @@ class AllegroHandDynamicHandover(BaseTask):
         self.allegro_hands = []
         self.envs = []
         # per-environment object total mass (will be populated during env creation)
+        self.env_object_coms = []
+        self.env_object_inertias = []
         self.env_object_masses = []
 
         self.object_init_state = []
@@ -582,11 +584,23 @@ class AllegroHandDynamicHandover(BaseTask):
             # compute and store the total mass of this env's object
             try:
                 mass_sum = 0.0
+                inertia_sum = 0.0
+                com_sum = 0.0
                 for p in lego_body_props:
                     mass_sum += p.mass
+                    inertia_sum += p.inertia
+                    com_sum += p.com
+                    print("mass:", p.mass)
+                    print("inertia:", p.inertia)
+                    print("com:", p.com)
+                breakpoint()
             except Exception:
                 mass_sum = 0.0
+                inertia_sum = 0.0
+                com_sum = 0.0
             self.env_object_masses.append(mass_sum)
+            self.env_object_inertias.append(inertia_sum)
+            self.env_object_coms.append(com_sum)
             self.gym.set_actor_rigid_body_properties(env_ptr, object_handle, lego_body_props)
 
 
@@ -649,6 +663,15 @@ class AllegroHandDynamicHandover(BaseTask):
 
         # convert collected per-env object masses to tensor (shape: num_envs x 1)
         self.object_masses = to_torch(self.env_object_masses, device=self.device, dtype=torch.float).view(self.num_envs, 1)
+        self.object_inertias = to_torch(self.env_object_inertias, device=self.device, dtype=torch.float).view(self.num_envs, 1)
+        self.object_coms = to_torch(self.env_object_coms, device=self.device, dtype=torch.float).view(self.num_envs, 3)
+        print("mass:", self.env_object_masses)
+        print("inertia:", self.env_object_inertias)
+        print("com:", self.env_object_coms)
+        print("mass after:", self.object_masses)
+        print("inertias after:", self.object_inertias)
+        print("coms after:", self.object_coms)
+        breakpoint()
 
         self.object_init_state = to_torch(self.object_init_state, device=self.device, dtype=torch.float).view(self.num_envs, 13)
         self.goal_states = self.object_init_state.clone()
@@ -688,7 +711,7 @@ class AllegroHandDynamicHandover(BaseTask):
         self.is_test = self.cfg["is_test"]
 
         self.traj_estimator_optimizer = torch.optim.Adam(self.traj_estimator.parameters(), lr=0.0003)
-        # 将traj_e设置为logdir的子文件夹（保留用于向后兼容）
+        # 将traj_e设置为logdir的子文件夹
         if "run_dir" in self.cfg:
             # 使用cfg中的run_dir作为基础路径
             self.traj_estimator_save_path = os.path.join(self.cfg["run_dir"], "traj_e")
@@ -698,11 +721,15 @@ class AllegroHandDynamicHandover(BaseTask):
         os.makedirs(self.traj_estimator_save_path, exist_ok=True)
         self.bce_logits_loss = torch.nn.BCEWithLogitsLoss()
 
-        # traj_estimator的加载现在在runner的restore方法中处理，与actor/critic同步加载
-        # 这里不再自动加载，以避免路径不匹配的问题
         if self.is_test:
-            # 在测试模式下，如果没有通过load_traj_estimator方法加载，则尝试从旧路径加载（向后兼容）
-            pass  # 加载逻辑移到load_traj_estimator方法中
+            try:
+                # 从保存路径加载模型
+                model_path = os.path.join(self.traj_estimator_save_path, "model.pt")
+                self.traj_estimator.load_state_dict(torch.load(model_path, map_location='cuda:0'))
+                self.traj_estimator.eval()
+            except Exception as e:
+                print("Failed to load traj_estimator weights (shapes mismatch?), continuing with random init:", e)
+                self.traj_estimator.train()
         else:
             # self.traj_estimator.load_state_dict(torch.load("./traj_e/model_perfect.pt", map_location='cuda:0'))
             self.traj_estimator.train()
@@ -726,35 +753,6 @@ class AllegroHandDynamicHandover(BaseTask):
             model_path = os.path.join(episode_dir, "traj_estimator.pt")
             torch.save(self.traj_estimator.state_dict(), model_path)
             print(f"Saved traj_estimator at episode {episode} to {model_path}")
-    
-    def load_traj_estimator(self, model_dir):
-        """
-        从指定目录加载traj_estimator模型，与action model同步加载
-        
-        Args:
-            model_dir: action model的加载目录（从runner传入）
-        """
-        try:
-            # 从与actor/critic相同的目录加载
-            model_path = os.path.join(model_dir, "traj_estimator.pt")
-            if os.path.exists(model_path):
-                self.traj_estimator.load_state_dict(torch.load(model_path, map_location=self.device))
-                self.traj_estimator.eval()
-                print(f"Loaded traj_estimator from {model_path}")
-            else:
-                # 如果新路径不存在，尝试从旧路径加载（向后兼容）
-                old_model_path = os.path.join(self.traj_estimator_save_path, "model.pt")
-                if os.path.exists(old_model_path):
-                    print(f"Warning: traj_estimator not found at {model_path}, trying old path {old_model_path}")
-                    self.traj_estimator.load_state_dict(torch.load(old_model_path, map_location=self.device))
-                    self.traj_estimator.eval()
-                    print(f"Loaded traj_estimator from old path {old_model_path}")
-                else:
-                    print(f"Warning: traj_estimator not found at {model_path} or {old_model_path}, using random init")
-                    self.traj_estimator.train()
-        except Exception as e:
-            print(f"Failed to load traj_estimator weights (shapes mismatch?), continuing with random init: {e}")
-            self.traj_estimator.train()
 
     def get_internal_state(self):
         return self.root_state_tensor[self.object_indices, 3:7]

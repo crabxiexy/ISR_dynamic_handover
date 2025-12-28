@@ -5,7 +5,8 @@ import torch
 import torch.nn as nn
 
 def init(module, weight_init, bias_init, gain=1):
-    weight_init(module.weight.data, gain=gain)
+    # weight_init(module.weight.data, gain=gain)
+    torch.nn.init.kaiming_uniform_(module.weight.data, nonlinearity='relu')
     bias_init(module.bias.data)
     return module
 

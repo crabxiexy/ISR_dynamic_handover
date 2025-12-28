@@ -87,6 +87,15 @@ def retrieve_cfg(args, use_rlg_config=False):
             "cfg/{}/config.yaml".format(args.algo),
             "cfg/allegro_hand_dynamic_handover.yaml",
         )
+
+    if args.task == "AllegroHandDynamicHandoverTeacher":
+        return (
+            os.path.join(
+                args.logdir, "allegro_hand_dynamic_handover_teacher/{}/{}_{}".format(args.algo, args.algo, timestamp)
+            ),
+            "cfg/{}/config.yaml".format(args.algo),
+            "cfg/allegro_hand_dynamic_handover.yaml",
+        )
     else:
         warn_task_name()
 

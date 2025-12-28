@@ -719,6 +719,7 @@ class AllegroHandDynamicHandoverOriginal(BaseTask):
                 model_path = os.path.join(episode_dir, "traj_estimator.pt")
                 torch.save(self.traj_estimator.state_dict(), model_path)
                 print(f"Saved traj_estimator at episode {episode} to {model_path}")
+                
     def get_internal_state(self):
         return self.root_state_tensor[self.object_indices, 3:7]
 
@@ -814,37 +815,43 @@ class AllegroHandDynamicHandoverOriginal(BaseTask):
 
     def compute_sim2real_observation(self, rand_floats):
         # obs: 0~150
+        # hand 1 proprioception
         self.obs_buf[:, 0:22] = unscale(self.allegro_hand_dof_pos,
                                             self.allegro_hand_dof_lower_limits, self.allegro_hand_dof_upper_limits)
 
         self.obs_buf[:, 0:6] = 0
         self.obs_buf[:, 1] = self.allegro_hand_dof_pos[:, 1]
         self.obs_buf[:, 2] = self.allegro_hand_dof_pos[:, 2]
-
+        # goal relative position
         self.obs_buf[:, 22:25] = (self.goal_pos - self.allegro_right_hand_base_pos).clone()
 
         # another_hand
         # obs: 150~300
+        # hand 2 proprioception
         self.obs_buf[:, 150:172] = unscale(self.allegro_hand_another_dof_pos,
                                                             self.allegro_hand_dof_lower_limits, self.allegro_hand_dof_upper_limits)
         self.obs_buf[:, 150:156] = self.allegro_hand_another_dof_pos[:, :6]
         self.obs_buf[:, 150:151] = 0
         self.obs_buf[:, 153:154] = 0
 
+        # object_state_stack_frames 0~60: object reletive pos history (20 steps)
         for i in range(self.object_seq_len):
             if i == self.object_seq_len - 1:
                 self.object_state_stack_frames[:, (i)*3:(i+1)*3] = (self.object_pos - self.allegro_right_hand_base_pos).clone()
             else:
                 self.object_state_stack_frames[:, (i)*3:(i+1)*3] = self.object_state_stack_frames[:, (i+1)*3:(i+2)*3].clone()
 
+        # train traj predict: predict the pos of next step contact point
         with TemporaryGrad():
             self.predict_pose, self.pose_latent_vector = self.predict_contact_pose(self.traj_estimator, self.object_state_stack_frames)
             self.update_contact_slamer(self.predict_pose)
 
+        # traj prediction result
         self.obs_buf[:, 260:263] = self.predict_pose[:, 0:3].detach()
         # self.obs_buf[:, 260:263] = (self.goal_pos - self.allegro_right_hand_base_pos).clone()
         self.obs_buf[:, 248:260] = self.object_state_stack_frames[:, 36:48].clone() + rand_floats[:, 0:12] * 0.05
 
+        # update observation buffer and stack frames
         for i in range(len(self.obs_buf_stack_frames) - 1):
             self.obs_buf[:, (i+1) * self.one_frame_num_obs:(i+2) * self.one_frame_num_obs] = self.obs_buf_stack_frames[i]
             self.obs_buf_stack_frames[i] = self.obs_buf[:, (i) * self.one_frame_num_obs:(i+1) * self.one_frame_num_obs].clone()
