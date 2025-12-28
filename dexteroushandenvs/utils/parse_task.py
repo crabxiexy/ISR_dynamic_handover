@@ -6,6 +6,7 @@
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 from tasks.allegro_hand_dynamic_handover import AllegroHandDynamicHandover
+from tasks.allegro_hand_dynamic_handover_original import AllegroHandDynamicHandoverOriginal
 
 from tasks.hand_base.vec_task import VecTaskCPU, VecTaskGPU, VecTaskPython, VecTaskPythonArm
 from tasks.hand_base.multi_vec_task import MultiVecTaskPython, SingleVecTaskPythonArm

@@ -8,6 +8,7 @@
 import os
 import sys
 import yaml
+import datetime
 
 from isaacgym import gymapi
 from isaacgym import gymutil
@@ -68,10 +69,20 @@ def set_seed(seed, torch_deterministic=False):
 
 
 def retrieve_cfg(args, use_rlg_config=False):
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     if args.task == "AllegroHandDynamicHandover":
         return (
             os.path.join(
-                args.logdir, "allegro_hand_dynamic_handover/{}/{}".format(args.algo, args.algo)
+                args.logdir, "allegro_hand_dynamic_handover/{}/{}_{}".format(args.algo, args.algo, timestamp)
+            ),
+            "cfg/{}/config.yaml".format(args.algo),
+            "cfg/allegro_hand_dynamic_handover.yaml",
+        )
+
+    if args.task == "AllegroHandDynamicHandoverOriginal":
+        return (
+            os.path.join(
+                args.logdir, "allegro_hand_dynamic_handover_original/{}/{}_{}".format(args.algo, args.algo, timestamp)
             ),
             "cfg/{}/config.yaml".format(args.algo),
             "cfg/allegro_hand_dynamic_handover.yaml",
@@ -103,11 +114,15 @@ def load_cfg(args, use_rlg_config=False):
             cfg["task"]["randomize"] = args.randomize
         else:
             cfg["task"]["randomize"] = args.randomize or cfg["task"]["randomize"]
+            # 源代码没有randomize
     else:
         cfg["task"] = {"randomize": False}
 
     logdir = args.logdir
+    # use_rlg_config =False, 跳到后面
     if use_rlg_config:
+        # 在rlg_config模式下，logdir也可能需要设置
+        # 但这里暂时保持原逻辑，因为mappo等算法不使用rlg_config
         # Set deterministic mode
         if args.torch_deterministic:
             cfg_train["params"]["torch_deterministic"] = True
@@ -175,6 +190,19 @@ def load_cfg(args, use_rlg_config=False):
 
         logdir = os.path.realpath(log_id)
         # os.makedirs(logdir, exist_ok=True)
+        
+        # 重要：将logdir设置到cfg_train["run_dir"]中，以便runner使用
+        # runner.py中的self.run_dir = config["run_dir"]会使用这个值
+        if "run_dir" in cfg_train:
+            cfg_train["run_dir"] = logdir
+        else:
+            cfg_train["run_dir"] = logdir
+        
+        # 将logdir也设置到cfg中，以便task类使用（例如traj_estimator保存路径）
+        cfg["run_dir"] = logdir
+        # 将save_interval也设置到cfg中，以便task类使用（同步保存traj_estimator）
+        if "save_interval" in cfg_train:
+            cfg["save_interval"] = cfg_train["save_interval"]
 
     return cfg, cfg_train, logdir
 
@@ -407,8 +435,8 @@ def get_args(benchmark=False, use_rlg_config=False):
             )
 
     # use custom parameters if provided by user
-    if args.logdir == "logs/":
-        args.logdir = logdir
+    # if args.logdir == "logs/":
+    args.logdir = logdir
 
     if args.cfg_train == "Base":
         args.cfg_train = cfg_train

@@ -70,6 +70,7 @@ if __name__ == '__main__':
     set_np_formatting()
     args = get_args()
     cfg, cfg_train, logdir = load_cfg(args)
+    print("logdir:", logdir)
     sim_params = parse_sim_params(args, cfg, cfg_train)
     set_seed(cfg_train.get("seed", -1), cfg_train.get("torch_deterministic", False))
     train()

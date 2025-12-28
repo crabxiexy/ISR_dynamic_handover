@@ -203,7 +203,8 @@ class AllegroHandDynamicHandover(BaseTask):
             # num_states = 215 + 384 * 3
             num_states = 215
 
-        self.cfg["env"]["numObservations"] = self.num_obs_dict[self.obs_type]
+        # add one extra slot for per-object mass
+        self.cfg["env"]["numObservations"] = self.num_obs_dict[self.obs_type] + 1
         self.cfg["env"]["numStates"] = num_states
         if self.is_multi_agent:
             self.num_agents = 2
@@ -477,14 +478,14 @@ class AllegroHandDynamicHandover(BaseTask):
         self.allegro_hand_dof_default_vel = to_torch(self.allegro_hand_dof_default_vel, device=self.device)
 
         # load manipulated object and goal assets
-        object_asset_options = gymapi.AssetOptions()
-        object_asset_options.density = 500
+        # object_asset_options = gymapi.AssetOptions()
+        # object_asset_options.density = 500
 
-        self.object_radius = 0.06
-        object_asset = self.gym.create_sphere(self.sim, 0.12, object_asset_options)
+        # self.object_radius = 0.06
+        # object_asset = self.gym.create_sphere(self.sim, 0.12, object_asset_options)
 
-        object_asset_options.disable_gravity = True
-        goal_asset = self.gym.create_sphere(self.sim, 0.04, object_asset_options)
+        # object_asset_options.disable_gravity = True
+        # goal_asset = self.gym.create_sphere(self.sim, 0.04, object_asset_options)
 
         allegro_hand_start_pose = gymapi.Transform()
         allegro_hand_start_pose.p = gymapi.Vec3(*get_axis_params(0.2, self.up_axis_idx))
@@ -521,6 +522,8 @@ class AllegroHandDynamicHandover(BaseTask):
 
         self.allegro_hands = []
         self.envs = []
+        # per-environment object total mass (will be populated during env creation)
+        self.env_object_masses = []
 
         self.object_init_state = []
         self.hand_start_states = []
@@ -576,6 +579,14 @@ class AllegroHandDynamicHandover(BaseTask):
             lego_body_props = self.gym.get_actor_rigid_body_properties(env_ptr, object_handle)
             for lego_body_prop in lego_body_props:
                 lego_body_prop.mass *= 1
+            # compute and store the total mass of this env's object
+            try:
+                mass_sum = 0.0
+                for p in lego_body_props:
+                    mass_sum += p.mass
+            except Exception:
+                mass_sum = 0.0
+            self.env_object_masses.append(mass_sum)
             self.gym.set_actor_rigid_body_properties(env_ptr, object_handle, lego_body_props)
 
 
@@ -594,7 +605,7 @@ class AllegroHandDynamicHandover(BaseTask):
             goal_object_idx = self.gym.get_actor_index(env_ptr, goal_handle, gymapi.DOMAIN_SIM)
             self.goal_object_indices.append(goal_object_idx)
 
-            # add goal object
+            # add predict_goal object
             predict_goal_handle = self.gym.create_actor(env_ptr, self.object_asset_dict[select_obj]['predict goal'], goal_start_pose, "predict_goal_object", i + self.num_envs * 2, 0, 0)
             predict_goal_object_idx = self.gym.get_actor_index(env_ptr, predict_goal_handle, gymapi.DOMAIN_SIM)
             self.predict_goal_object_indices.append(predict_goal_object_idx)
@@ -636,8 +647,8 @@ class AllegroHandDynamicHandover(BaseTask):
 
         self.sensor_handle_indices = to_torch(sensor_handles, dtype=torch.int64)
 
-        object_rb_props = self.gym.get_actor_rigid_body_properties(env_ptr, object_handle)
-        self.object_rb_masses = [prop.mass for prop in object_rb_props]
+        # convert collected per-env object masses to tensor (shape: num_envs x 1)
+        self.object_masses = to_torch(self.env_object_masses, device=self.device, dtype=torch.float).view(self.num_envs, 1)
 
         self.object_init_state = to_torch(self.object_init_state, device=self.device, dtype=torch.float).view(self.num_envs, 13)
         self.goal_states = self.object_init_state.clone()
@@ -669,20 +680,33 @@ class AllegroHandDynamicHandover(BaseTask):
         self.debug_target = []
         self.debug_qpos = []
 
-        self.traj_estimator = TrajEstimator(input_dim=60, output_dim=3).to(self.device)
+        # TrajEstimator input_dim increased by 1 to include object mass
+        self.traj_estimator = TrajEstimator(input_dim=61, output_dim=3).to(self.device)
         for param in self.traj_estimator.parameters():
             param.requires_grad_(True)
 
         self.is_test = self.cfg["is_test"]
 
         self.traj_estimator_optimizer = torch.optim.Adam(self.traj_estimator.parameters(), lr=0.0003)
-        self.traj_estimator_save_path = "./traj_e/"
+        # 将traj_e设置为logdir的子文件夹
+        if "run_dir" in self.cfg:
+            # 使用cfg中的run_dir作为基础路径
+            self.traj_estimator_save_path = os.path.join(self.cfg["run_dir"], "traj_e")
+        else:
+            # 如果cfg中没有run_dir，使用默认路径
+            self.traj_estimator_save_path = "./traj_e/"
         os.makedirs(self.traj_estimator_save_path, exist_ok=True)
         self.bce_logits_loss = torch.nn.BCEWithLogitsLoss()
 
         if self.is_test:
-            self.traj_estimator.load_state_dict(torch.load("./traj_e/model.pt", map_location='cuda:0'))
-            self.traj_estimator.eval()
+            try:
+                # 从保存路径加载模型
+                model_path = os.path.join(self.traj_estimator_save_path, "model.pt")
+                self.traj_estimator.load_state_dict(torch.load(model_path, map_location='cuda:0'))
+                self.traj_estimator.eval()
+            except Exception as e:
+                print("Failed to load traj_estimator weights (shapes mismatch?), continuing with random init:", e)
+                self.traj_estimator.train()
         else:
             # self.traj_estimator.load_state_dict(torch.load("./traj_e/model_perfect.pt", map_location='cuda:0'))
             self.traj_estimator.train()
@@ -690,6 +714,22 @@ class AllegroHandDynamicHandover(BaseTask):
         self.total_steps = 0
         self.success_buf = torch.zeros_like(self.rew_buf)
         self.hit_success_buf = torch.zeros_like(self.rew_buf)
+
+    def save_traj_estimator(self, episode, save_dir):
+        """
+        保存traj_estimator模型，与action model同步保存到相同的文件夹
+        
+        Args:
+            episode: 当前episode编号
+            save_dir: action model的保存目录（从runner传入）
+        """
+        if not self.is_test:
+            # 保存到与action model相同的文件夹
+            episode_dir = os.path.join(save_dir, str(episode))
+            os.makedirs(episode_dir, exist_ok=True)
+            model_path = os.path.join(episode_dir, "traj_estimator.pt")
+            torch.save(self.traj_estimator.state_dict(), model_path)
+            print(f"Saved traj_estimator at episode {episode} to {model_path}")
 
     def get_internal_state(self):
         return self.root_state_tensor[self.object_indices, 3:7]
@@ -809,11 +849,18 @@ class AllegroHandDynamicHandover(BaseTask):
             else:
                 self.object_state_stack_frames[:, (i)*3:(i+1)*3] = self.object_state_stack_frames[:, (i+1)*3:(i+2)*3].clone()
 
+        # include per-object mass as additional input to the traj estimator
+        contact_input = torch.cat([self.object_state_stack_frames, self.object_masses], dim=1)
         with TemporaryGrad():
-            self.predict_pose, self.pose_latent_vector = self.predict_contact_pose(self.traj_estimator, self.object_state_stack_frames)
+            self.predict_pose, self.pose_latent_vector = self.predict_contact_pose(self.traj_estimator, contact_input)
             self.update_contact_slamer(self.predict_pose)
 
         self.obs_buf[:, 260:263] = self.predict_pose[:, 0:3].detach()
+        # place object mass into observation (one slot)
+        try:
+            self.obs_buf[:, 263:264] = self.object_masses.clone()
+        except Exception:
+            pass
         # self.obs_buf[:, 260:263] = (self.goal_pos - self.allegro_right_hand_base_pos).clone()
         self.obs_buf[:, 248:260] = self.object_state_stack_frames[:, 36:48].clone() + rand_floats[:, 0:12] * 0.05
 
@@ -1041,10 +1088,11 @@ class AllegroHandDynamicHandover(BaseTask):
                                                      gymtorch.unwrap_tensor(self.root_state_tensor),
                                                      gymtorch.unwrap_tensor(object_indices.to(torch.int32)), len(object_indices.to(torch.int32)))
 
-        if self.total_steps % (200 * (self.max_episode_length - 1)) == 0:
-            iter = int(self.total_steps / (200 * (self.max_episode_length - 1)))
-            if not self.is_test:
-                torch.save(self.traj_estimator.state_dict(), self.traj_estimator_save_path + "/model.pt")
+        # if self.total_steps % (200 * (self.max_episode_length - 1)) == 0:
+        #     iter = int(self.total_steps / (200 * (self.max_episode_length - 1)))
+        #     if not self.is_test:
+        #         torch.save(self.traj_estimator.state_dict(), self.traj_estimator_save_path + "/model.pt")
+        # 现在在runner.py中执行保存traj_e.py逻辑
 
         self.apply_force = False
         if self.apply_force == True:

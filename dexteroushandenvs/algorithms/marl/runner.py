@@ -321,6 +321,10 @@ class Runner:
                 torch.save(policy_actor.state_dict(), str(self.save_dir) + "/{}/actor_agent".format(episode) + str(agent_id) + ".pt")
                 policy_critic = self.trainer[agent_id].policy.critic
                 torch.save(policy_critic.state_dict(), str(self.save_dir) + "/{}/critic_agent".format(episode) + str(agent_id) + ".pt")
+        
+        # 同时保存traj_estimator到相同的文件夹（如果task类有这个方法）
+        if hasattr(self.envs.task, 'save_traj_estimator'):
+            self.envs.task.save_traj_estimator(episode, self.save_dir)
 
     def restore(self):
         for agent_id in range(self.num_agents):

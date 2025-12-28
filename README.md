@@ -39,6 +39,9 @@ cd dynamic_handover
 pip install -r requirements.txt
 pip install -e .
 ```
+```
+export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+```
 * Trained checkpoint. Download from [Link](https://drive.google.com/file/d/1rfi257wjXhYr_MuDuPbyXU-GesWme-cP/view?usp=sharing).
 
 

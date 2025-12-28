@@ -1,0 +1,304 @@
+Importing module 'gym_38' (/home/caozhuo/isaacgym/python/isaacgym/_bindings/linux-x86_64/gym_38.so)
+Setting GYM_USD_PLUG_INFO_PATH to /home/caozhuo/isaacgym/python/isaacgym/_bindings/linux-x86_64/usd/plugInfo.json
+PyTorch version 2.4.1+cu121
+Device count 8
+/home/caozhuo/isaacgym/python/isaacgym/_bindings/src/gymtorch
+Using /home/caozhuo/.cache/torch_extensions/py38_cu121 as PyTorch extensions root...
+Emitting ninja build file /home/caozhuo/.cache/torch_extensions/py38_cu121/gymtorch/build.ninja...
+Building extension module gymtorch...
+Allowing ninja to set a default number of workers... (overridable by setting the environment variable MAX_JOBS=N)
+ninja: no work to do.
+Not connected to PVD
++++ Using GPU PhysX
+Physics Engine: PhysX
+Physics Device: cuda:0
+GPU Pipeline: enabled
+[Error] [carb.windowing-glfw.plugin] GLFW initialization failed.
+[Error] [carb.windowing-glfw.plugin] GLFW window creation failed!
+[Error] [carb.gym.plugin] Failed to create Window in CreateGymViewerInternal
+logdir: /home/caozhuo/dynamic_handover/dexteroushandenvs/logs/allegro_hand_dynamic_handover/mappo/mappo
+Setting seed: 22
+Algorithm:  mappo
+Task type: MultiAgent
+Averaging factor:  0.01
+Obs type: full_state
+ENTER ASSET CREATING!
+self.num_allegro_hand_bodies:  23
+self.num_allegro_hand_shapes:  28
+self.num_allegro_hand_dofs:  22
+self.num_allegro_hand_actuators:  22
+self.num_allegro_hand_tendons:  0
+another_hand_base_rigid_body_index:  29
+hand_base_rigid_body_index:  6
+RL device:  cuda:0
+Actor(
+  (base): MLPBase(
+    (feature_norm): LayerNorm((450,), eps=1e-05, elementwise_affine=True)
+    (mlp): MLPLayer(
+      (fc1): Sequential(
+        (0): Linear(in_features=450, out_features=512, bias=True)
+        (1): ELU(alpha=1.0)
+        (2): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      )
+      (fc2): ModuleList(
+        (0-1): 2 x Sequential(
+          (0): Linear(in_features=512, out_features=512, bias=True)
+          (1): ELU(alpha=1.0)
+          (2): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+        )
+      )
+    )
+  )
+  (act): ACTLayer(
+    (action_out): DiagGaussian(
+      (fc_mean): Linear(in_features=512, out_features=22, bias=True)
+    )
+  )
+)
+Critic(
+  (base): MLPBase(
+    (feature_norm): LayerNorm((215,), eps=1e-05, elementwise_affine=True)
+    (mlp): MLPLayer(
+      (fc1): Sequential(
+        (0): Linear(in_features=215, out_features=512, bias=True)
+        (1): ELU(alpha=1.0)
+        (2): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      )
+      (fc2): ModuleList(
+        (0-1): 2 x Sequential(
+          (0): Linear(in_features=512, out_features=512, bias=True)
+          (1): ELU(alpha=1.0)
+          (2): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+        )
+      )
+    )
+  )
+  (v_out): Linear(in_features=512, out_features=1, bias=True)
+)
+Actor(
+  (base): MLPBase(
+    (feature_norm): LayerNorm((450,), eps=1e-05, elementwise_affine=True)
+    (mlp): MLPLayer(
+      (fc1): Sequential(
+        (0): Linear(in_features=450, out_features=512, bias=True)
+        (1): ELU(alpha=1.0)
+        (2): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      )
+      (fc2): ModuleList(
+        (0-1): 2 x Sequential(
+          (0): Linear(in_features=512, out_features=512, bias=True)
+          (1): ELU(alpha=1.0)
+          (2): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+        )
+      )
+    )
+  )
+  (act): ACTLayer(
+    (action_out): DiagGaussian(
+      (fc_mean): Linear(in_features=512, out_features=22, bias=True)
+    )
+  )
+)
+Critic(
+  (base): MLPBase(
+    (feature_norm): LayerNorm((215,), eps=1e-05, elementwise_affine=True)
+    (mlp): MLPLayer(
+      (fc1): Sequential(
+        (0): Linear(in_features=215, out_features=512, bias=True)
+        (1): ELU(alpha=1.0)
+        (2): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+      )
+      (fc2): ModuleList(
+        (0-1): 2 x Sequential(
+          (0): Linear(in_features=512, out_features=512, bias=True)
+          (1): ELU(alpha=1.0)
+          (2): LayerNorm((512,), eps=1e-05, elementwise_affine=True)
+        )
+      )
+    )
+  )
+  (v_out): Linear(in_features=512, out_features=1, bias=True)
+)
+
+Algo mappo Exp check updates 0/6103 episodes, total num timesteps 16384/100000000, FPS 2865.
+
+some episodes done, average rewards:  -0.03455192595720291
+some episodes done, average rewards:  -0.049427248537540436
+some episodes done, average rewards:  -0.060221318155527115
+some episodes done, average rewards:  -0.0705891028046608
+some episodes done, average rewards:  -0.07408636063337326
+some episodes done, average rewards:  -0.06764735281467438
+some episodes done, average rewards:  -0.05733020603656769
+some episodes done, average rewards:  -0.04813435301184654
+some episodes done, average rewards:  -0.04147956892848015
+some episodes done, average rewards:  -0.022184384986758232
+some episodes done, average rewards:  -0.010801803320646286
+some episodes done, average rewards:  0.011499492451548576
+some episodes done, average rewards:  0.030989980325102806
+some episodes done, average rewards:  0.03567536175251007
+some episodes done, average rewards:  0.0884806290268898
+some episodes done, average rewards:  0.05618404969573021
+some episodes done, average rewards:  0.06382247805595398
+some episodes done, average rewards:  0.09105125814676285
+some episodes done, average rewards:  0.09860336035490036
+some episodes done, average rewards:  0.11781016737222672
+some episodes done, average rewards:  0.1206880509853363
+some episodes done, average rewards:  0.13716557621955872
+some episodes done, average rewards:  0.18431676924228668
+some episodes done, average rewards:  0.14788615703582764
+some episodes done, average rewards:  0.24120017886161804
+
+Algo mappo Exp check updates 25/6103 episodes, total num timesteps 425984/100000000, FPS 3303.
+
+some episodes done, average rewards:  0.1988041251897812
+some episodes done, average rewards:  0.21470801532268524
+some episodes done, average rewards:  0.23415042459964752
+some episodes done, average rewards:  0.24032478034496307
+some episodes done, average rewards:  0.26265066862106323
+some episodes done, average rewards:  0.25225454568862915
+some episodes done, average rewards:  0.26552700996398926
+some episodes done, average rewards:  0.29566502571105957
+some episodes done, average rewards:  0.28046900033950806
+some episodes done, average rewards:  0.2460528016090393
+some episodes done, average rewards:  0.31453806161880493
+some episodes done, average rewards:  0.320736825466156
+some episodes done, average rewards:  0.33226141333580017
+some episodes done, average rewards:  0.3224809765815735
+some episodes done, average rewards:  0.32923954725265503
+some episodes done, average rewards:  0.36274513602256775
+some episodes done, average rewards:  0.3358488976955414
+some episodes done, average rewards:  0.35324448347091675
+some episodes done, average rewards:  0.3408344089984894
+some episodes done, average rewards:  0.3625243306159973
+some episodes done, average rewards:  0.4223247468471527
+some episodes done, average rewards:  0.37750953435897827
+some episodes done, average rewards:  0.40621742606163025
+some episodes done, average rewards:  0.4010850191116333
+some episodes done, average rewards:  0.43678176403045654
+
+Algo mappo Exp check updates 50/6103 episodes, total num timesteps 835584/100000000, FPS 3281.
+
+some episodes done, average rewards:  0.4967513084411621
+some episodes done, average rewards:  0.4487914741039276
+some episodes done, average rewards:  0.46711480617523193
+some episodes done, average rewards:  0.48300549387931824
+some episodes done, average rewards:  0.5073122978210449
+some episodes done, average rewards:  0.5404804348945618
+some episodes done, average rewards:  0.5566986799240112
+some episodes done, average rewards:  0.6089667677879333
+some episodes done, average rewards:  0.5863111019134521
+some episodes done, average rewards:  0.6090782284736633
+some episodes done, average rewards:  0.7011864185333252
+some episodes done, average rewards:  0.6957210302352905
+some episodes done, average rewards:  0.7528632879257202
+some episodes done, average rewards:  0.7431493997573853
+some episodes done, average rewards:  0.7762016654014587
+some episodes done, average rewards:  0.8752166032791138
+some episodes done, average rewards:  0.9501236081123352
+some episodes done, average rewards:  0.9273160099983215
+some episodes done, average rewards:  0.9819733500480652
+some episodes done, average rewards:  0.976604163646698
+some episodes done, average rewards:  0.9265038371086121
+some episodes done, average rewards:  1.0279779434204102
+some episodes done, average rewards:  0.9437701106071472
+some episodes done, average rewards:  1.062082290649414
+some episodes done, average rewards:  1.0852030515670776
+
+Algo mappo Exp check updates 75/6103 episodes, total num timesteps 1245184/100000000, FPS 3322.
+
+some episodes done, average rewards:  1.028251051902771
+some episodes done, average rewards:  0.9677567481994629
+some episodes done, average rewards:  1.0439590215682983
+some episodes done, average rewards:  1.0296313762664795
+some episodes done, average rewards:  1.0562916994094849
+some episodes done, average rewards:  Loading extension module gymtorch...
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+/home/caozhuo/miniconda3/envs/rlgpu3/lib/python3.8/site-packages/gym/spaces/box.py:127: UserWarning: [33mWARN: Box bound precision lowered by casting to float32[0m
+  logger.warn(f"Box bound precision lowered by casting to {self.dtype}")
+1.0682977437973022
+some episodes done, average rewards:  1.0216761827468872
+some episodes done, average rewards:  0.9619773626327515
+some episodes done, average rewards:  1.007638931274414
+some episodes done, average rewards:  1.0176790952682495
+some episodes done, average rewards:  0.9899736046791077
+some episodes done, average rewards:  1.046518325805664
+some episodes done, average rewards:  0.9859679937362671
+some episodes done, average rewards:  1.0232539176940918
+some episodes done, average rewards:  1.0002723932266235
+some episodes done, average rewards:  0.9971014857292175
+some episodes done, average rewards:  0.9929770827293396
+some episodes done, average rewards:  1.0698269605636597
+some episodes done, average rewards:  1.0782599449157715
+some episodes done, average rewards:  1.036952257156372
+some episodes done, average rewards:  1.0266486406326294
+some episodes done, average rewards:  1.046395182609558
+some episodes done, average rewards:  1.0481947660446167
+some episodes done, average rewards:  1.0277576446533203
+some episodes done, average rewards:  1.0762295722961426
+
+Algo mappo Exp check updates 100/6103 episodes, total num timesteps 1654784/100000000, FPS 3369.
+
+some episodes done, average rewards:  1.095808506011963
+some episodes done, average rewards:  1.0384058952331543
+some episodes done, average rewards:  1.0512245893478394
+some episodes done, average rewards:  1.0317137241363525
+some episodes done, average rewards:  1.0240858793258667
+some episodes done, average rewards:  0.9913495182991028
+some episodes done, average rewards:  0.9622527360916138
+some episodes done, average rewards:  1.0485053062438965
+some episodes done, average rewards:  0.9461351633071899
+some episodes done, average rewards:  1.0531229972839355
+some episodes done, average rewards:  0.9886600971221924
+some episodes done, average rewards:  1.0283550024032593
+some episodes done, average rewards:  0.948083758354187
+some episodes done, average rewards:  0.9708794355392456
+some episodes done, average rewards:  0.9369761347770691
+some episodes done, average rewards:  0.9025218486785889
+some episodes done, average rewards:  0.9170630574226379
+some episodes done, average rewards:  0.8804619908332825
+some episodes done, average rewards:  0.9324998259544373
+some episodes done, average rewards:  0.9635128974914551
+some episodes done, average rewards:  0.982940673828125
+some episodes done, average rewards:  0.9721910953521729
+some episodes done, average rewards:  0.9556015729904175
+some episodes done, average rewards:  1.0248292684555054
+some episodes done, average rewards:  1.01707124710083
+
+Algo mappo Exp check updates 125/6103 episodes, total num timesteps 2064384/100000000, FPS 3345.
+
+some episodes done, average rewards:  1.050174355506897
+some episodes done, average rewards:  1.0363625288009644
+some episodes done, average rewards:  1.0438218116760254
+some episodes done, average rewards:  1.0271306037902832
+some episodes done, average rewards:  1.0827512741088867
+some episodes done, average rewards:  0.9980298280715942
+some episodes done, average rewards:  1.0516681671142578
+Traceback (most recent call last):
+  File "train.py", line 76, in <module>
+    train()
+  File "train.py", line 43, in train
+    runner.run()
+  File "/home/caozhuo/dynamic_handover/dexteroushandenvs/algorithms/marl/runner.py", line 132, in run
+    obs, share_obs, rewards, dones, infos, _ = self.envs.step(actions)
+  File "/home/caozhuo/dynamic_handover/dexteroushandenvs/tasks/hand_base/multi_vec_task_allegro.py", line 100, in step
+    self.task.step(actions_tensor)
+  File "/home/caozhuo/dynamic_handover/dexteroushandenvs/tasks/hand_base/base_task.py", line 167, in step
+    self.post_physics_step()
+  File "/home/caozhuo/dynamic_handover/dexteroushandenvs/tasks/allegro_hand_dynamic_handover.py", line 1076, in post_physics_step
+    self.compute_observations()
+  File "/home/caozhuo/dynamic_handover/dexteroushandenvs/tasks/allegro_hand_dynamic_handover.py", line 782, in compute_observations
+    self.compute_sim2real_observation(rand_floats)
+  File "/home/caozhuo/dynamic_handover/dexteroushandenvs/tasks/allegro_hand_dynamic_handover.py", line 814, in compute_sim2real_observation
+    self.update_contact_slamer(self.predict_pose)
+  File "/home/caozhuo/dynamic_handover/dexteroushandenvs/tasks/allegro_hand_dynamic_handover.py", line 834, in update_contact_slamer
+    self.extras['pos_loss'] = self.pos_loss.unsqueeze(0)
+  File "/home/caozhuo/miniconda3/envs/rlgpu3/lib/python3.8/site-packages/torch/fx/traceback.py", line 72, in format_stack
+    return traceback.format_list(traceback.extract_stack()[:-1])
+  File "/home/caozhuo/miniconda3/envs/rlgpu3/lib/python3.8/traceback.py", line 211, in extract_stack
+    stack = StackSummary.extract(walk_stack(f), limit=limit)
+  File "/home/caozhuo/miniconda3/envs/rlgpu3/lib/python3.8/traceback.py", line 350, in extract
+    name = co.co_name
+KeyboardInterrupt

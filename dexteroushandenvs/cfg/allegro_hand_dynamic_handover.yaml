@@ -3,7 +3,8 @@ env:
   env_name: "allegro_hand_dynamic_handover"
   numEnvs: 2048
   envSpacing: 1.25
-  episodeLength: 30
+  # 30 -> 60
+  episodeLength: 60
   enableDebugVis: False
   aggregateMode: 1
   enableCameraSensors: False
@@ -38,7 +39,7 @@ env:
   handAgentIndex: "[[0, 1, 2, 3, 4, 5]]"
   asymmetric_observations: True
   successTolerance: 0.1
-  printNumSuccesses: False
+  printNumSuccesses: True
   maxConsecutiveSuccesses: 0
 
   asset:
@@ -49,7 +50,7 @@ env:
     assetFileNamePen: "mjcf/open_ai_assets/hand/pen.xml"
 
 task:
-  randomize: False
+  randomize: True
   randomization_params:
     frequency: 600   # Define how many simulation steps between generating new randomizations
     observations:
