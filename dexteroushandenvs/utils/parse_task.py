@@ -7,6 +7,7 @@
 
 from tasks.allegro_hand_dynamic_handover import AllegroHandDynamicHandover
 from tasks.allegro_hand_dynamic_handover_original import AllegroHandDynamicHandoverOriginal
+from tasks.allegro_hand_dynamic_handover_add_mass_network import AllegroHandDynamicHandoverAddMassNetwork
 from tasks.allegro_hand_dynamic_handover_teacher import AllegroHandDynamicHandoverTeacher
 
 from tasks.hand_base.vec_task import VecTaskCPU, VecTaskGPU, VecTaskPython, VecTaskPythonArm

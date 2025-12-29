@@ -43,6 +43,36 @@ class TrajEstimator(nn.Module):
 
         return outputs, x
 
+class MassEstimator(nn.Module):
+    """
+    质量估计网络：根据物体历史位置和机械臂自感知信息预测物体质量
+    
+    输入：
+    - 物体前20帧相对位置历史 (60维: 20*3)
+    - 可选的机械臂自感知信息（如关节位置、速度等）
+    
+    输出：
+    - 预测的物体质量 (1维)
+    """
+    def __init__(self, input_dim, output_dim=1):
+        super(MassEstimator, self).__init__()
+        self.linear1 = nn.Linear(input_dim, 256)
+        self.linear2 = nn.Linear(256, 128)
+        self.linear3 = nn.Linear(128, 64)
+        self.output_layer = nn.Linear(64, output_dim)
+        
+        self.activate_func = nn.ELU()
+    
+    def forward(self, inputs):
+        x = self.activate_func(self.linear1(inputs))
+        x = self.activate_func(self.linear2(x))
+        x = self.activate_func(self.linear3(x))
+        outputs = self.output_layer(x)
+        # 使用ReLU确保质量预测为正值
+        outputs = torch.relu(outputs) + 0.001  # 添加小值避免为0
+        
+        return outputs
+
 class TemporaryGrad(object):
     def __enter__(self):
         self.prev = torch.is_grad_enabled()
@@ -51,7 +81,7 @@ class TemporaryGrad(object):
     def __exit__(self, exc_type, exc_value, traceback):
         torch.set_grad_enabled(self.prev)
 
-class AllegroHandDynamicHandoverTeacher(BaseTask):
+class AllegroHandDynamicHandoverAddMassNetwork(BaseTask):
     def __init__(self, cfg, sim_params, physics_engine, device_type, device_id, headless, agent_index=[[[0, 1, 2, 3, 4, 5]], [[0, 1, 2, 3, 4, 5]]], is_multi_agent=False):
         self.cfg = cfg
         self.sim_params = sim_params
@@ -203,7 +233,8 @@ class AllegroHandDynamicHandoverTeacher(BaseTask):
             # num_states = 215 + 384 * 3
             num_states = 215
 
-        # add one extra slot for per-object mass
+        # add one extra slot for predicted object mass (from mass estimator network)
+        # Note: actual mass is stored in self.object_masses and used as supervision signal
         self.cfg["env"]["numObservations"] = self.num_obs_dict[self.obs_type] + 1
         self.cfg["env"]["numStates"] = num_states
         if self.is_multi_agent:
@@ -523,12 +554,7 @@ class AllegroHandDynamicHandoverTeacher(BaseTask):
         self.allegro_hands = []
         self.envs = []
         # per-environment object total mass (will be populated during env creation)
-        self.env_object_coms = []
-        self.env_object_inertias = []
         self.env_object_masses = []
-        self.env_object_frictions = []
-        self.env_object_restitutions = []
-        self.env_object_rolling_friction = []
 
         self.object_init_state = []
         self.hand_start_states = []
@@ -582,37 +608,16 @@ class AllegroHandDynamicHandoverTeacher(BaseTask):
             self.object_indices.append(object_idx)
 
             lego_body_props = self.gym.get_actor_rigid_body_properties(env_ptr, object_handle)
-            lego_body_shape_props = self.gym.get_actor_rigid_shape_properties(env_ptr, object_handle)
             for lego_body_prop in lego_body_props:
                 lego_body_prop.mass *= 1
             # compute and store the total mass of this env's object
-            
-            mass_sum = 0.0
-            inertia_sum = [0.0]*9
-            com_sum = [0.0, 0.0, 0.0]
-            friction = 0.0
-            restitution = 0.0
-            rolling_friction = 0.0
-            for p in lego_body_props:
-                mass_sum += p.mass
-                mat = p.inertia
-                inertia_tensor_flat = [
-                    mat.x.x, mat.x.y, mat.x.z,
-                    mat.y.x, mat.y.y, mat.y.z,
-                    mat.z.x, mat.z.y, mat.z.z
-                ]
-                inertia_sum = [inertia_sum[i] + inertia_tensor_flat[i] for i in range(9)]
-                com_sum = [com_sum[i] + [p.com.x, p.com.y, p.com.z][i] for i in range(3)]
-            for p in lego_body_shape_props:
-                friction += p.friction
-                restitution += p.restitution
-                rolling_friction += p.rolling_friction
+            try:
+                mass_sum = 0.0
+                for p in lego_body_props:
+                    mass_sum += p.mass
+            except Exception:
+                mass_sum = 0.0
             self.env_object_masses.append(mass_sum)
-            self.env_object_inertias.append(inertia_sum)
-            self.env_object_coms.append(com_sum)
-            self.env_object_frictions.append(friction)
-            self.env_object_restitutions.append(restitution)
-            self.env_object_rolling_friction.append(rolling_friction)
             self.gym.set_actor_rigid_body_properties(env_ptr, object_handle, lego_body_props)
 
 
@@ -675,17 +680,6 @@ class AllegroHandDynamicHandoverTeacher(BaseTask):
 
         # convert collected per-env object masses to tensor (shape: num_envs x 1)
         self.object_masses = to_torch(self.env_object_masses, device=self.device, dtype=torch.float).view(self.num_envs, 1)
-        self.object_inertias = to_torch(self.env_object_inertias, device=self.device, dtype=torch.float).view(self.num_envs, 9)
-        self.object_coms = to_torch(self.env_object_coms, device=self.device, dtype=torch.float).view(self.num_envs, 3)
-        self.object_frictions = to_torch(self.env_object_frictions, device=self.device, dtype=torch.float).view(self.num_envs, 1)
-        self.object_restitutions = to_torch(self.env_object_restitutions, device=self.device, dtype=torch.float).view(self.num_envs, 1)
-        self.object_rolling_frictions = to_torch(self.env_object_rolling_friction, device=self.device, dtype=torch.float).view(self.num_envs, 1)
-        # print("mass:", self.env_object_masses)
-        # print("inertia:", self.env_object_inertias)
-        # print("com:", self.env_object_coms)
-        # print("mass after:", self.object_masses.shape)
-        # print("inertias after:", self.object_inertias.shape)
-        # print("coms after:", self.object_coms.shape)
 
         self.object_init_state = to_torch(self.object_init_state, device=self.device, dtype=torch.float).view(self.num_envs, 13)
         self.goal_states = self.object_init_state.clone()
@@ -721,9 +715,18 @@ class AllegroHandDynamicHandoverTeacher(BaseTask):
         for param in self.traj_estimator.parameters():
             param.requires_grad_(True)
 
+        # MassEstimator网络：输入包括物体位置历史(60维) + 可选的机械臂自感知信息
+        # 这里使用位置历史 + 物体速度(3维) + 机械臂关节位置(22维，hand1前22个DOF)作为输入
+        # 输入维度：60 (position history) + 3 (object velocity) + 22 (hand proprioception) = 85
+        mass_estimator_input_dim = 60 + 3 + 22  # object history + object velocity + hand1 proprioception
+        self.mass_estimator = MassEstimator(input_dim=mass_estimator_input_dim, output_dim=1).to(self.device)
+        for param in self.mass_estimator.parameters():
+            param.requires_grad_(True)
+
         self.is_test = self.cfg["is_test"]
 
         self.traj_estimator_optimizer = torch.optim.Adam(self.traj_estimator.parameters(), lr=0.0003)
+        self.mass_estimator_optimizer = torch.optim.Adam(self.mass_estimator.parameters(), lr=0.0001)
         # 将traj_e设置为logdir的子文件夹
         if "run_dir" in self.cfg:
             # 使用cfg中的run_dir作为基础路径
@@ -734,14 +737,16 @@ class AllegroHandDynamicHandoverTeacher(BaseTask):
         os.makedirs(self.traj_estimator_save_path, exist_ok=True)
         self.bce_logits_loss = torch.nn.BCEWithLogitsLoss()
 
-        # traj_estimator的加载现在在runner的restore方法中处理，与actor/critic同步加载
+        # traj_estimator和mass_estimator的加载现在在runner的restore方法中处理，与actor/critic同步加载
         # 这里不再自动加载，以避免路径不匹配的问题
         if self.is_test:
-            # 在测试模式下，如果没有通过load_traj_estimator方法加载，则尝试从旧路径加载（向后兼容）
-            pass  # 加载逻辑移到load_traj_estimator方法中
+            # 在测试模式下，如果没有通过load方法加载，则使用评估模式
+            self.traj_estimator.eval()
+            self.mass_estimator.eval()
         else:
             # self.traj_estimator.load_state_dict(torch.load("./traj_e/model_perfect.pt", map_location='cuda:0'))
             self.traj_estimator.train()
+            self.mass_estimator.train()
 
         self.total_steps = 0
         self.success_buf = torch.zeros_like(self.rew_buf)
@@ -762,6 +767,22 @@ class AllegroHandDynamicHandoverTeacher(BaseTask):
             model_path = os.path.join(episode_dir, "traj_estimator.pt")
             torch.save(self.traj_estimator.state_dict(), model_path)
             print(f"Saved traj_estimator at episode {episode} to {model_path}")
+    
+    def save_mass_estimator(self, episode, save_dir):
+        """
+        保存mass_estimator模型，与action model同步保存到相同的文件夹
+        
+        Args:
+            episode: 当前episode编号
+            save_dir: action model的保存目录（从runner传入）
+        """
+        if not self.is_test:
+            # 保存到与action model相同的文件夹
+            episode_dir = os.path.join(save_dir, str(episode))
+            os.makedirs(episode_dir, exist_ok=True)
+            model_path = os.path.join(episode_dir, "mass_estimator.pt")
+            torch.save(self.mass_estimator.state_dict(), model_path)
+            print(f"Saved mass_estimator at episode {episode} to {model_path}")
     
     def load_traj_estimator(self, model_dir):
         """
@@ -791,6 +812,27 @@ class AllegroHandDynamicHandoverTeacher(BaseTask):
         except Exception as e:
             print(f"Failed to load traj_estimator weights (shapes mismatch?), continuing with random init: {e}")
             self.traj_estimator.train()
+    
+    def load_mass_estimator(self, model_dir):
+        """
+        从指定目录加载mass_estimator模型，与action model同步加载
+        
+        Args:
+            model_dir: action model的加载目录（从runner传入）
+        """
+        try:
+            # 从与actor/critic相同的目录加载
+            model_path = os.path.join(model_dir, "mass_estimator.pt")
+            if os.path.exists(model_path):
+                self.mass_estimator.load_state_dict(torch.load(model_path, map_location=self.device))
+                self.mass_estimator.eval()
+                print(f"Loaded mass_estimator from {model_path}")
+            else:
+                print(f"Warning: mass_estimator not found at {model_path}, using random init")
+                self.mass_estimator.train()
+        except Exception as e:
+            print(f"Failed to load mass_estimator weights (shapes mismatch?), continuing with random init: {e}")
+            self.mass_estimator.train()
 
     def get_internal_state(self):
         return self.root_state_tensor[self.object_indices, 3:7]
@@ -907,6 +949,7 @@ class AllegroHandDynamicHandoverTeacher(BaseTask):
         self.obs_buf[:, 150:151] = 0
         self.obs_buf[:, 153:154] = 0
 
+        # object_state_stack_frames 0~60: object reletive pos history (20 steps)
         for i in range(self.object_seq_len):
             if i == self.object_seq_len - 1:
                 self.object_state_stack_frames[:, (i)*3:(i+1)*3] = (self.object_pos - self.allegro_right_hand_base_pos).clone()
@@ -918,19 +961,28 @@ class AllegroHandDynamicHandoverTeacher(BaseTask):
             self.predict_pose, self.pose_latent_vector = self.predict_contact_pose(self.traj_estimator, self.object_state_stack_frames)
             self.update_contact_slamer(self.predict_pose)
 
-        self.obs_buf[:, 260:263] = self.predict_pose[:, 0:3].detach()
-        # place object mass into observation (one slot)
-        self.obs_buf[:, 263:264] = self.object_masses.clone()
-        self.obs_buf[:, 264:273] = self.object_inertias.clone()
-        self.obs_buf[:, 273:276] = self.object_coms.clone()
-        self.obs_buf[:, 276:277] = self.object_frictions.clone()
-        self.obs_buf[:, 277:278] = self.object_restitutions.clone()
-        self.obs_buf[:, 278:279] = self.object_rolling_frictions.clone()
+        # train mass estimator: predict object mass from history and proprioception
+        # 准备输入：物体位置历史 + 物体速度 + 机械臂自感知
+        mass_input = torch.cat([
+            self.object_state_stack_frames,  # 60维：物体前20帧相对位置历史
+            self.object_linvel,  # 3维：物体线速度
+            unscale(self.allegro_hand_dof_pos[:, :22], 
+                   self.allegro_hand_dof_lower_limits[:22], 
+                   self.allegro_hand_dof_upper_limits[:22])  # 22维：机械臂关节位置
+        ], dim=1)
         
-        # self.obs_buf[:, 260:263] = (self.goal_pos - self.allegro_right_hand_base_pos).clone()
-        # self.obs_buf[:, 200:260] = self.object_state_stack_frames[:, 0:60].clone() + rand_floats[:, 0:60] * 0.05
-        self.obs_buf[:, 248:260] = self.object_state_stack_frames[:, 36:48].clone() + rand_floats[:, 0:12] * 0.05
+        with TemporaryGrad():
+            self.predicted_mass = self.predict_mass(self.mass_estimator, mass_input)
+            self.update_mass_estimator(self.predicted_mass)
 
+        # traj prediction result
+        self.obs_buf[:, 260:263] = self.predict_pose[:, 0:3].detach()
+        # self.obs_buf[:, 260:263] = (self.goal_pos - self.allegro_right_hand_base_pos).clone()
+        self.obs_buf[:, 248:260] = self.object_state_stack_frames[:, 36:48].clone() + rand_floats[:, 0:12] * 0.05
+        # place predicted mass into observation (one slot at 263)
+        self.obs_buf[:, 263:264] = self.predicted_mass.detach()
+
+        # update observation buffer and stack frames
         for i in range(len(self.obs_buf_stack_frames) - 1):
             self.obs_buf[:, (i+1) * self.one_frame_num_obs:(i+2) * self.one_frame_num_obs] = self.obs_buf_stack_frames[i]
             self.obs_buf_stack_frames[i] = self.obs_buf[:, (i) * self.one_frame_num_obs:(i+1) * self.one_frame_num_obs].clone()
@@ -946,6 +998,24 @@ class AllegroHandDynamicHandoverTeacher(BaseTask):
         loss.backward()
         self.traj_estimator_optimizer.step()
         self.extras['pos_loss'] = self.pos_loss.unsqueeze(0)
+    
+    def predict_mass(self, mass_estimator, mass_input):
+        """使用质量估计网络预测物体质量"""
+        predicted_mass = mass_estimator(mass_input)
+        return predicted_mass
+    
+    def update_mass_estimator(self, predicted_mass):
+        """
+        更新质量估计网络
+        监督信号：self.object_masses (在create_env时存储的实际物体质量)
+        """
+        # 使用MSE loss，将预测质量与实际质量进行比较
+        self.mass_loss = F.mse_loss(predicted_mass, self.object_masses)
+        loss = self.mass_loss
+        self.mass_estimator_optimizer.zero_grad()
+        loss.backward()
+        self.mass_estimator_optimizer.step()
+        self.extras['mass_loss'] = self.mass_loss.unsqueeze(0)
 
     def compute_sim2real_asymmetric_obs(self, rand_floats):
         self.states_buf[:, 0:self.num_allegro_hand_dofs] = unscale(self.allegro_hand_dof_pos,
