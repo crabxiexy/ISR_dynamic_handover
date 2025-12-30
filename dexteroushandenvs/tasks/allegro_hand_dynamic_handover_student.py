@@ -34,6 +34,9 @@ class AllegroHandDynamicHandoverStudent(AllegroHandDynamicHandoverTeacher):
              
         self.gt_extrinsics = torch.zeros(self.num_envs, self.adaptation_output_dim, device=self.device)
         self.est_extrinsics = torch.zeros(self.num_envs, self.adaptation_output_dim, device=self.device)
+        
+        # Phase control: 'teacher' = Use GT obs (for data collection), 'student' = Use Est obs (for inference)
+        self.rma_phase = "teacher" 
 
     def load_adaptation_module(self, path):
         if os.path.exists(path):
@@ -42,6 +45,11 @@ class AllegroHandDynamicHandoverStudent(AllegroHandDynamicHandoverTeacher):
             self.adaptation_module.eval()
         else:
             print(f"Adaptation Module path {path} not found!")
+
+    def set_rma_phase(self, phase):
+        assert phase in ["teacher", "student"]
+        self.rma_phase = phase
+        print(f"RMA Phase switched to: {self.rma_phase}")
 
     def compute_observations(self):
         # 1. Compute Base Observations (Teacher's logic)
@@ -77,19 +85,16 @@ class AllegroHandDynamicHandoverStudent(AllegroHandDynamicHandoverTeacher):
         
         # 4. Run Adaptation (Estimate Params)
         if self.use_adaptation:
-            # We use no_grad because the policy gradient doesn't flow here
-            # For data collection in Phase 2, we just need the values.
-            # The training script will run the backward pass on a separate graph or re-run forward.
             with torch.no_grad():
                 # Input to module: (N, 108, 50)
-                # self.obs_history is (N, 50, 108)
                 z_hat = self.adaptation_module(self.obs_history.permute(0, 2, 1))
             
-            self.est_extrinsics = z_hat
+            self.est_extrinsics = z_hat.clone()
             
-            # 5. Replace GT in obs_buf with Estimate
-            # This ensures the Policy (which expects this shape) uses the estimate
-            self.obs_buf[:, 263:279] = self.est_extrinsics
+            # 5. Modify Observations based on Phase
+            if self.rma_phase == "student":
+                # Replace GT in obs_buf with Estimate for the policy
+                self.obs_buf[:, 263:279] = self.est_extrinsics
             
     def reset(self, env_ids, goal_env_ids):
         super().reset(env_ids, goal_env_ids)
