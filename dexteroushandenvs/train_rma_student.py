@@ -2,14 +2,16 @@
 import os
 import sys
 import numpy as np
-import torch
-import torch.optim as optim
 import time
 
 from utils.config import set_np_formatting, set_seed, get_args, parse_sim_params, load_cfg
 from utils.parse_task import parse_task
 from tasks.allegro_hand_dynamic_handover_student import AllegroHandDynamicHandoverStudent
 from algorithms.marl.runner import Runner
+from tasks.hand_base.multi_vec_task_allegro import MultiVecTaskPythonAllegro
+
+import torch
+import torch.optim as optim
 
 def train_rma():
     set_np_formatting()
@@ -37,7 +39,7 @@ def train_rma():
     # Instantiate Environment manually
     agent_index = [[[0, 1, 2, 3, 4, 5]], [[0, 1, 2, 3, 4, 5]]] # Default
     
-    env = AllegroHandDynamicHandoverStudent(
+    task = AllegroHandDynamicHandoverStudent(
         cfg=cfg, 
         sim_params=sim_params, 
         physics_engine=args.physics_engine, 
@@ -47,6 +49,9 @@ def train_rma():
         agent_index=agent_index, 
         is_multi_agent=False
     )
+    
+    # Wrap Task with MultiVecTaskPythonAllegro to comport with Runner expectation (vec_env.task)
+    env = MultiVecTaskPythonAllegro(task, args.rl_device)
     
     # Setup Runner
     # config for runner needs strict keys
@@ -60,7 +65,7 @@ def train_rma():
     marl_runner = Runner(vec_env=env, config=config, model_dir=args.model_dir)
     
     # Adaptation Module Training Setup
-    adaptation_module = env.adaptation_module
+    adaptation_module = task.adaptation_module
     optimizer = optim.Adam(adaptation_module.parameters(), lr=1e-3)
     
     num_epochs = 2000 
@@ -70,7 +75,7 @@ def train_rma():
     print("Starting RMA Phase 2 Training (Adaptation)...")
     
     # Set Phase to Teacher (Use GT for policy input)
-    env.set_rma_phase("teacher") 
+    task.set_rma_phase("teacher") 
     
     # Initialize Runner buffers
     marl_runner.warmup()
@@ -118,8 +123,8 @@ def train_rma():
             # history: (N, 50, 108)
             # gt: (N, 16)
             
-            pred_extrinsics = adaptation_module(env.obs_history.permute(0, 2, 1))
-            target_extrinsics = env.gt_extrinsics
+            pred_extrinsics = adaptation_module(task.obs_history.permute(0, 2, 1))
+            target_extrinsics = task.gt_extrinsics
             
             loss = torch.mean((pred_extrinsics - target_extrinsics)**2)
             
