@@ -11,7 +11,7 @@ class AllegroHandDynamicHandoverStudent(AllegroHandDynamicHandoverTeacher):
         super().__init__(cfg, sim_params, physics_engine, device_type, device_id, headless, agent_index, is_multi_agent)
         
         self.adaptation_history_len = self.cfg["env"].get("adaptation_history_len", 50)
-        self.adaptation_input_dim = 16*4 + 44 # 108
+        self.adaptation_input_dim = 22*4 + 44 # 132
         self.adaptation_output_dim = 16
         
         self.use_adaptation = self.cfg["env"].get("use_adaptation", True)
@@ -62,11 +62,17 @@ class AllegroHandDynamicHandoverStudent(AllegroHandDynamicHandoverTeacher):
         
         # 3. Update Adaptation History
         # Features: [DofPos1, DofVel1, DofPos2, DofVel2, Actions]
-        # self.allegro_hand_dof_pos: (N, 16)
-        # self.allegro_hand_dof_vel: (N, 16)
-        # self.allegro_hand_another_dof_pos: (N, 16)
-        # self.allegro_hand_another_dof_vel: (N, 16)
+        # self.allegro_hand_dof_pos: (N, 22)
+        # self.allegro_hand_dof_vel: (N, 22)
+        # self.allegro_hand_another_dof_pos: (N, 22)
+        # self.allegro_hand_another_dof_vel: (N, 22)
         # self.actions: (N, 44)
+
+        # print("allegro_hand_dof_pos shape:", self.allegro_hand_dof_pos.shape)
+        # print("allegro_hand_dof_vel shape:", self.allegro_hand_dof_vel.shape)
+        # print("allegro_hand_another_dof_pos shape:", self.allegro_hand_another_dof_pos.shape)
+        # print("allegro_hand_another_dof_vel shape:", self.allegro_hand_another_dof_vel.shape)
+        # print("actions shape:", self.actions.shape)
         
         current_step_features = torch.cat([
             self.allegro_hand_dof_pos, 
@@ -74,10 +80,12 @@ class AllegroHandDynamicHandoverStudent(AllegroHandDynamicHandoverTeacher):
             self.allegro_hand_another_dof_pos, 
             self.allegro_hand_another_dof_vel,
             self.actions
-        ], dim=-1) # (N, 108)
+        ], dim=-1) # (N, 132)
         
         # Shift history: remove oldest, add new
-        # self.obs_history shape: (N, 50, 108)
+        # self.obs_history shape: (N, 50, 132)
+        # print("obs_history shape:", self.obs_history[:, 1:, :].shape)
+        # print("current_step_features shape:", current_step_features.unsqueeze(1).shape)
         self.obs_history = torch.cat([
             self.obs_history[:, 1:, :], 
             current_step_features.unsqueeze(1)
@@ -86,7 +94,7 @@ class AllegroHandDynamicHandoverStudent(AllegroHandDynamicHandoverTeacher):
         # 4. Run Adaptation (Estimate Params)
         if self.use_adaptation:
             with torch.no_grad():
-                # Input to module: (N, 108, 50)
+                # Input to module: (N, 132, 50)
                 z_hat = self.adaptation_module(self.obs_history.permute(0, 2, 1))
             
             self.est_extrinsics = z_hat.clone()

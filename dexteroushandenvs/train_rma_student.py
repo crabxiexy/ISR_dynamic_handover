@@ -32,7 +32,7 @@ def train_rma():
         cfg["is_test"] = True
     
     sim_params = parse_sim_params(args, cfg, cfg_train)
-    set_seed(cfg_train.get("seed", -1), cfg_train.get("torch_deterministic", False))
+    seed = set_seed(cfg_train.get("seed", -1), cfg_train.get("torch_deterministic", False))
     
     device = args.sim_device if args.use_gpu_pipeline else 'cpu'
     
@@ -47,7 +47,7 @@ def train_rma():
         device_id=args.device_id, 
         headless=args.headless,
         agent_index=agent_index, 
-        is_multi_agent=False
+        is_multi_agent=True
     )
     
     # Wrap Task with MultiVecTaskPythonAllegro to comport with Runner expectation (vec_env.task)
@@ -62,6 +62,7 @@ def train_rma():
     
     # We instantiate Runner which handles Model Loading (restore)
     print(f"Initializing Runner with model_dir: {args.model_dir}")
+    env.task.cfg["seed"] = seed
     marl_runner = Runner(vec_env=env, config=config, model_dir=args.model_dir)
     
     # Adaptation Module Training Setup
@@ -126,6 +127,8 @@ def train_rma():
             pred_extrinsics = adaptation_module(task.obs_history.permute(0, 2, 1))
             target_extrinsics = task.gt_extrinsics
             
+            # print("pred_extrinsics shape:", pred_extrinsics.shape)
+            # print("target_extrinsics shape:", target_extrinsics.shape)
             loss = torch.mean((pred_extrinsics - target_extrinsics)**2)
             
             optimizer.zero_grad()

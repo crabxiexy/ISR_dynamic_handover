@@ -51,7 +51,6 @@ class Runner:
         self.eval_interval = config["eval_interval"]
         self.eval_episodes = config["eval_episodes"]
         self.log_interval = config["log_interval"]
-
         self.seed = self.envs.task.cfg["seed"]
         self.model_dir = model_dir
 
