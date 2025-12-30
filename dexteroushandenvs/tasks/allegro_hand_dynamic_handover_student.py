@@ -11,7 +11,7 @@ class AllegroHandDynamicHandoverStudent(AllegroHandDynamicHandoverTeacher):
         super().__init__(cfg, sim_params, physics_engine, device_type, device_id, headless, agent_index, is_multi_agent)
         
         self.adaptation_history_len = self.cfg["env"].get("adaptation_history_len", 50)
-        self.adaptation_input_dim = 22*4 + 44 # 132
+        self.adaptation_input_dim = 107
         self.adaptation_output_dim = 16
         
         self.use_adaptation = self.cfg["env"].get("use_adaptation", True)
@@ -75,12 +75,10 @@ class AllegroHandDynamicHandoverStudent(AllegroHandDynamicHandoverTeacher):
         # print("actions shape:", self.actions.shape)
         
         current_step_features = torch.cat([
-            self.allegro_hand_dof_pos, 
-            self.allegro_hand_dof_vel, 
-            self.allegro_hand_another_dof_pos, 
-            self.allegro_hand_another_dof_vel,
-            self.actions
-        ], dim=-1) # (N, 132)
+            self.obs_buf[:, 0:25], # 25
+            self.obs_buf[:, 150:172], # 22
+            self.obs_buf[:, 200:260], # 60
+        ], dim=-1) # (N, 107)
         
         # Shift history: remove oldest, add new
         # self.obs_history shape: (N, 50, 132)

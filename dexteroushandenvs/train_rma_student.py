@@ -67,10 +67,11 @@ def train_rma():
     
     # Adaptation Module Training Setup
     adaptation_module = task.adaptation_module
-    optimizer = optim.Adam(adaptation_module.parameters(), lr=1e-3)
+    optimizer = optim.Adam(adaptation_module.parameters(), lr=7e-4)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=200, gamma=0.5)
     
     num_epochs = 2000 
-    save_interval = 50
+    save_interval = 10
     steps_per_epoch = 100 
     
     print("Starting RMA Phase 2 Training (Adaptation)...")
@@ -137,8 +138,9 @@ def train_rma():
             
             epoch_loss += loss.item()
             total_steps += 1
-            
-        print(f"Epoch {epoch}: Avg Loss {epoch_loss / steps_per_epoch:.6f}")
+        
+        scheduler.step()
+        print(f"Epoch {epoch}: Avg Loss {epoch_loss / steps_per_epoch:.6f}, LR: {scheduler.get_last_lr()[0]:.8f}")
         
         if epoch % save_interval == 0:
             save_path = os.path.join(logdir, f"adaptation_module_{epoch}.pt")
