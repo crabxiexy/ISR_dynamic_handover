@@ -3,7 +3,6 @@ import os
 import sys
 import numpy as np
 import time
-import torch
 
 # Manually handle custom argument for Adaptation Checkpoint before importing config
 adaptation_checkpoint = None
@@ -22,6 +21,8 @@ from utils.parse_task import parse_task
 from tasks.allegro_hand_dynamic_handover_student import AllegroHandDynamicHandoverStudent
 from algorithms.marl.runner import Runner
 from tasks.hand_base.multi_vec_task_allegro import MultiVecTaskPythonAllegro
+
+import torch
 
 def test_rma():
     set_np_formatting()
